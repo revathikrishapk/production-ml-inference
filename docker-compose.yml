@@ -1,0 +1,54 @@
+services:
+
+  triton:
+    image: nvcr.io/nvidia/tritonserver:26.08-py3
+    container_name: triton-server
+
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+
+    volumes:
+      - ./model_repository:/models
+
+    command:
+      - tritonserver
+      - --model-repository=/models
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v2/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+
+  api:
+    image: production-ml-api:1.0
+    container_name: ml-api
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      TRITON_URL: triton:8000
+
+    depends_on:
+      triton:
+        condition: service_healthy
+
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+
+    ports:
+      - "9090:9090"
+
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+    depends_on:
+      triton:
+        condition: service_healthy
